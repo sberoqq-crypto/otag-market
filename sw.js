@@ -1,4 +1,4 @@
-const CACHE_NAME = "otag-paket-v1";
+const CACHE_NAME = "otag-paket-v2";
 const CORE_ASSETS = [
   "./index.html",
   "./manifest.json",
@@ -22,14 +22,23 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// API çağrılarını (fetch to Apps Script) her zaman network'ten al,
-// sadece kabuk dosyalarını (HTML/CSS/JS/icon) cache'den sun.
+// API çağrılarına (Apps Script) hiç dokunma.
+// Kabuk dosyaları (HTML/JS/manifest/icon) için NETWORK-ÖNCELİKLİ:
+// önce internetten en güncelini almayı dene, başarısız olursa
+// (offline ise) cache'e düş. Böylece her güncellemede eski sürümde
+// takılı kalma sorunu yaşanmaz.
 self.addEventListener("fetch", (event) => {
   const url = event.request.url;
   if (url.includes("script.google.com")) {
     return; // API isteklerine dokunma
   }
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
