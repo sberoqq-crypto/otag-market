@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Otağ Market - Paket Servis</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#111827" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Otağ Paket" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+
+<style>
+  :root{
+    --bg:#0b0f19; --card:#151b2b; --card2:#1c2438; --text:#e8ebf3; --muted:#8b93a7;
+    --accent:#ea580c; --accent2:#f97316; --green:#22c55e; --blue:#3b82f6; --red:#ef4444;
+    --border:#242c42;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  header{
+    padding:18px 20px 14px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:10;
+  }
+  header h1{font-size:17px; margin:0; font-weight:700;}
+  header .sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .logout{background:none; border:1px solid var(--border); color:var(--muted); padding:7px 12px; border-radius:8px; font-size:13px;}
+
+  #app{max-width:520px; margin:0 auto; padding:16px;}
+
+  /* LOGIN */
+  .login-wrap{display:flex; flex-direction:column; justify-content:center; min-height:90vh; padding:24px;}
+  .login-card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px 22px;}
+  .logo-circle{width:64px; height:64px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:800; margin:0 auto 14px;}
+  .login-card h2{text-align:center; margin:0 0 4px; font-size:20px;}
+  .login-card p{text-align:center; color:var(--muted); font-size:13px; margin:0 0 22px;}
+  label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px; margin-top:14px;}
+  input, select{
+    width:100%; padding:13px 14px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card2); color:var(--text); font-size:15px; outline:none;
+  }
+  input:focus, select:focus{border-color:var(--accent);}
+  button.primary{
+    width:100%; margin-top:22px; padding:14px; border:none; border-radius:10px;
+    background:var(--accent); color:#fff; font-size:15px; font-weight:700;
+  }
+  button.primary:active{background:var(--accent2);}
+  .err{color:var(--red); font-size:13px; margin-top:10px; text-align:center;}
+
+  /* ORDER LIST */
+  .order-card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:14px 16px; margin-bottom:12px;
+  }
+  .order-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .order-id{font-size:12px; color:var(--muted);}
+  .order-name{font-size:16px; font-weight:700; margin-top:2px;}
+  .order-addr{font-size:13px; color:var(--muted); margin-top:4px; line-height:1.4;}
+  .order-amount{font-size:18px; font-weight:800; color:var(--accent2);}
+  .badge{display:inline-block; font-size:11px; padding:4px 9px; border-radius:20px; font-weight:600; margin-top:8px;}
+  .badge.bekliyor{background:#3b2b13; color:#fbbf24;}
+  .badge.teslim{background:#0f2e1c; color:var(--green);}
+  .deliver-btn{
+    width:100%; margin-top:12px; padding:12px; border:none; border-radius:10px;
+    background:var(--green); color:#06210f; font-weight:700; font-size:14px;
+  }
+  .empty{text-align:center; color:var(--muted); padding:60px 20px; font-size:14px;}
+
+  /* MODAL FORM */
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end;
+    justify-content:center; z-index:50;
+  }
+  .sheet{
+    background:var(--card); width:100%; max-width:520px; border-radius:18px 18px 0 0;
+    padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;
+  }
+  .sheet h3{margin:0 0 4px;}
+  .sheet .muted{color:var(--muted); font-size:13px; margin-bottom:16px;}
+  .pay-options{display:flex; gap:8px; margin-top:6px;}
+  .pay-opt{
+    flex:1; padding:12px 6px; text-align:center; border-radius:10px; border:1px solid var(--border);
+    background:var(--card2); font-size:13px; font-weight:600; color:var(--muted);
+  }
+  .pay-opt.active{border-color:var(--accent); color:var(--accent2); background:#2a1a0f;}
+  .sheet-actions{display:flex; gap:10px; margin-top:22px;}
+  .sheet-actions button{flex:1; padding:13px; border-radius:10px; border:none; font-weight:700; font-size:14px;}
+  .btn-cancel{background:var(--card2); color:var(--muted); border:1px solid var(--border) !important;}
+  .btn-confirm{background:var(--green); color:#06210f;}
+
+  /* ADMIN */
+  .tabs{display:flex; gap:8px; margin-bottom:16px;}
+  .tab{flex:1; text-align:center; padding:10px; border-radius:10px; background:var(--card2); font-size:13px; color:var(--muted); border:1px solid var(--border);}
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;}
+  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;}
+  .stat-card .label{font-size:12px; color:var(--muted);}
+  .stat-card .value{font-size:22px; font-weight:800; margin-top:6px;}
+  .courier-row{display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:8px;}
+  .courier-row .name{font-weight:600;}
+  .courier-row .count{color:var(--accent2); font-weight:800;}
+  .loading{text-align:center; padding:40px; color:var(--muted);}
+  .refresh-fab{
+    position:fixed; bottom:24px; right:24px; width:50px; height:50px; border-radius:50%;
+    background:var(--accent); border:none; color:#fff; font-size:20px; box-shadow:0 4px 14px rgba(0,0,0,.4);
+  }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+/* ======= AYAR: Apps Script Web App URL'ini buraya yapıştır ======= */
+const API_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnRdhmuQwqWOj7_9Kc4Udd4yc6sM6s4-PWTzUej7YCuxsqxI2XYBz93vGXtm4ctiNUFyQLv5E024zLGM5dlgZlYBoBS79F_7xHAdquPA5AuETBQaoXbAzK4p3JUkfMEElPOUkinoytRt3VYWeCAaIh-ltv4k5p_ScEpetQP74PaKjO6ksY1_dh2YPGdREP-kf0FJUz90kc6TzdCxrLe6IVHTHOC-8K4tPN7KT9G_gCefxBqHZXqwEWF8-Fv5z-YYgSzfFlfK-b925L5w5kcaRagR4Qn0tA&lib=MQhSx_4Yttp85w6z-Br61PPf2IaeYmGSZ";
+/* =================================================================== */
+
+let session = JSON.parse(localStorage.getItem("otag_session") || "null");
+let currentOrders = [];
+let adminTab = "siparisler";
+
+const app = document.getElementById("app");
+
+async function api(action, payload) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" }, // preflight'tan kaçınmak için
+    body: JSON.stringify({ action, ...payload }),
+  });
+  return res.json();
+}
+
+function render() {
+  if (!session) return renderLogin();
+  if (session.rol === "Admin") return renderAdmin();
+  return renderCourier();
+}
+
+/* ---------------- LOGIN ---------------- */
+function renderLogin(errMsg) {
+  app.innerHTML = `
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="logo-circle">O</div>
+        <h2>Otağ Market</h2>
+        <p>Paket Servis Takip</p>
+        <label>İsim</label>
+        <input id="li-isim" placeholder="Adınız" autocomplete="username" />
+        <label>Şifre</label>
+        <input id="li-sifre" type="password" placeholder="••••••" autocomplete="current-password" />
+        <button class="primary" id="li-btn">Giriş Yap</button>
+        ${errMsg ? `<div class="err">${errMsg}</div>` : ""}
+      </div>
+    </div>
+  `;
+  document.getElementById("li-btn").onclick = doLogin;
+  document.getElementById("li-sifre").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doLogin();
+  });
+}
+
+async function doLogin() {
+  const isim = document.getElementById("li-isim").value.trim();
+  const sifre = document.getElementById("li-sifre").value.trim();
+  if (!isim || !sifre) return renderLogin("İsim ve şifre gerekli.");
+  const btn = document.getElementById("li-btn");
+  btn.textContent = "Kontrol ediliyor...";
+  try {
+    const r = await api("login", { isim, sifre });
+    if (!r.ok) return renderLogin(r.error);
+    session = { isim: r.isim, rol: r.rol };
+    localStorage.setItem("otag_session", JSON.stringify(session));
+    render();
+  } catch (e) {
+    renderLogin("Bağlantı hatası: API_URL doğru mu kontrol et.");
+  }
+}
+
+function logout() {
+  session = null;
+  localStorage.removeItem("otag_session");
+  render();
+}
+
+/* ---------------- KURYE EKRANI ---------------- */
+async function renderCourier() {
+  app.innerHTML = `
+    <header>
+      <div>
+        <h1>${session.isim}</h1>
+        <div class="sub">Kurye</div>
+      </div>
+      <button class="logout" onclick="logout()">Çıkış</button>
+    </header>
+    <div id="list" class="loading">Siparişler yükleniyor...</div>
+  `;
+  try {
+    const r = await api("getOrders", { isim: session.isim, rol: session.rol });
+    if (!r.ok) throw new Error(r.error);
+    currentOrders = r.orders;
+    renderOrderList();
+  } catch (e) {
+    document.getElementById("list").innerHTML = `<div class="empty">Yüklenemedi: ${e.message}</div>`;
+  }
+}
+
+function renderOrderList() {
+  const wrap = document.getElementById("list");
+  if (currentOrders.length === 0) {
+    wrap.innerHTML = `<div class="empty">Şu an sana atanmış sipariş yok 🎉</div>`;
+    return;
+  }
+  wrap.className = "";
+  wrap.innerHTML = currentOrders
+    .sort((a, b) => (a.Durum === "Teslim Edildi" ? 1 : -1))
+    .map(
+      (o) => `
+    <div class="order-card">
+      <div class="order-top">
+        <div>
+          <div class="order-id">Sipariş #${o.SiparisID}</div>
+          <div class="order-name">${o.MusteriAdi}</div>
+        </div>
+        <div class="order-amount">${Number(o.Tutar).toFixed(0)} ₺</div>
+      </div>
+      <div class="order-addr">📍 ${o.Adres || "-"}</div>
+      ${o.Notlar && o.Durum === "Teslim Edildi" ? `<div class="order-addr">📝 ${o.Notlar}</div>` : ""}
+      <span class="badge ${o.Durum === "Teslim Edildi" ? "teslim" : "bekliyor"}">${o.Durum}</span>
+      ${
+        o.Durum !== "Teslim Edildi"
+          ? `<button class="deliver-btn" onclick="openDeliverForm('${o.SiparisID}')">✅ Teslim Edildi</button>`
+          : ""
+      }
+    </div>
+  `
+    )
+    .join("");
+}
+
+function openDeliverForm(siparisId) {
+  const order = currentOrders.find((o) => String(o.SiparisID) === String(siparisId));
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet">
+      <h3>Teslimatı Tamamla</h3>
+      <div class="muted">${order.MusteriAdi} — ${Number(order.Tutar).toFixed(0)} ₺</div>
+
+      <label>Ödeme Tipi</label>
+      <div class="pay-options">
+        <div class="pay-opt" data-val="Nakit">Nakit</div>
+        <div class="pay-opt" data-val="POS">POS</div>
+        <div class="pay-opt" data-val="Veresiye">Veresiye</div>
+      </div>
+
+      <div id="amount-wrap" style="display:none;">
+        <label>Ödenen Miktar (₺)</label>
+        <input id="df-miktar" type="number" inputmode="decimal" placeholder="0" />
+      </div>
+
+      <label>Notlar / Açıklama</label>
+      <input id="df-notlar" placeholder="Örn: Kapıda bırakıldı" />
+
+      <div class="sheet-actions">
+        <button class="btn-cancel" id="df-cancel">Vazgeç</button>
+        <button class="btn-confirm" id="df-confirm">Onayla</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  let odemeTipi = null;
+  const amountWrap = overlay.querySelector("#amount-wrap");
+  const miktarInput = overlay.querySelector("#df-miktar");
+
+  overlay.querySelectorAll(".pay-opt").forEach((el) => {
+    el.onclick = () => {
+      overlay.querySelectorAll(".pay-opt").forEach((x) => x.classList.remove("active"));
+      el.classList.add("active");
+      odemeTipi = el.dataset.val;
+      if (odemeTipi === "Nakit" || odemeTipi === "POS") {
+        amountWrap.style.display = "block";
+        miktarInput.value = "";
+      } else {
+        // Veresiye: tutar siparişteki tutara eşitlenir
+        amountWrap.style.display = "block";
+        miktarInput.value = order.Tutar;
+      }
+    };
+  });
+
+  overlay.querySelector("#df-cancel").onclick = () => overlay.remove();
+  overlay.querySelector("#df-confirm").onclick = async () => {
+    if (!odemeTipi) { alert("Lütfen ödeme tipi seç."); return; }
+    const miktar = Number(miktarInput.value || 0);
+    const notlar = overlay.querySelector("#df-notlar").value;
+    const btn = overlay.querySelector("#df-confirm");
+    btn.textContent = "Kaydediliyor...";
+    try {
+      const r = await api("updateOrder", {
+        siparisId: order.SiparisID,
+        odemeTipi,
+        odenenMiktar: miktar,
+        notlar,
+      });
+      if (!r.ok) throw new Error(r.error);
+      overlay.remove();
+      renderCourier();
+    } catch (e) {
+      alert("Hata: " + e.message);
+      btn.textContent = "Onayla";
+    }
+  };
+}
+
+/* ---------------- ADMIN EKRANI ---------------- */
+async function renderAdmin() {
+  app.innerHTML = `
+    <header>
+      <div>
+        <h1>Yönetici Paneli</h1>
+        <div class="sub">${session.isim}</div>
+      </div>
+      <button class="logout" onclick="logout()">Çıkış</button>
+    </header>
+    <div style="padding:16px;">
+      <div class="tabs">
+        <div class="tab ${adminTab === "siparisler" ? "active" : ""}" onclick="switchAdminTab('siparisler')">Siparişler</div>
+        <div class="tab ${adminTab === "rapor" ? "active" : ""}" onclick="switchAdminTab('rapor')">Rapor</div>
+      </div>
+      <div id="admin-body" class="loading">Yükleniyor...</div>
+    </div>
+  `;
+  loadAdminBody();
+}
+
+function switchAdminTab(tab) {
+  adminTab = tab;
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  event.target.classList.add("active");
+  loadAdminBody();
+}
+
+async function loadAdminBody() {
+  const body = document.getElementById("admin-body");
+  body.className = "loading";
+  body.textContent = "Yükleniyor...";
+  try {
+    if (adminTab === "siparisler") {
+      const r = await api("getOrders", { isim: session.isim, rol: "Admin" });
+      if (!r.ok) throw new Error(r.error);
+      currentOrders = r.orders;
+      body.className = "";
+      body.innerHTML = currentOrders
+        .map(
+          (o) => `
+        <div class="order-card">
+          <div class="order-top">
+            <div>
+              <div class="order-id">#${o.SiparisID} — ${o.KuryeAdi}</div>
+              <div class="order-name">${o.MusteriAdi}</div>
+            </div>
+            <div class="order-amount">${Number(o.Tutar).toFixed(0)} ₺</div>
+          </div>
+          <div class="order-addr">📍 ${o.Adres || "-"}</div>
+          <span class="badge ${o.Durum === "Teslim Edildi" ? "teslim" : "bekliyor"}">${o.Durum}${o.OdemeTipi ? " · " + o.OdemeTipi : ""}</span>
+        </div>
+      `
+        )
+        .join("") || `<div class="empty">Hiç sipariş yok.</div>`;
+    } else {
+      const r = await api("getReport", {});
+      if (!r.ok) throw new Error(r.error);
+      const kuryeRows = Object.entries(r.kuryePerformans || {})
+        .map(([k, v]) => `<div class="courier-row"><span class="name">${k}</span><span class="count">${v} teslimat</span></div>`)
+        .join("") || `<div class="empty">Bugün henüz teslimat yok.</div>`;
+      body.className = "";
+      body.innerHTML = `
+        <div class="stat-grid">
+          <div class="stat-card"><div class="label">Bugün Nakit</div><div class="value">${r.nakitToplam.toFixed(0)} ₺</div></div>
+          <div class="stat-card"><div class="label">Bugün POS</div><div class="value">${r.posToplam.toFixed(0)} ₺</div></div>
+          <div class="stat-card"><div class="label">Bugün Veresiye</div><div class="value">${r.veresiyeToplam.toFixed(0)} ₺</div></div>
+          <div class="stat-card"><div class="label">Toplam</div><div class="value">${(r.nakitToplam + r.posToplam + r.veresiyeToplam).toFixed(0)} ₺</div></div>
+        </div>
+        <div style="margin-top:8px; margin-bottom:10px; font-size:13px; color:var(--muted);">Kurye Performansı (bugün)</div>
+        ${kuryeRows}
+      `;
+    }
+  } catch (e) {
+    body.className = "";
+    body.innerHTML = `<div class="empty">Hata: ${e.message}</div>`;
+  }
+}
+
+render();
+
+/* ---------------- SERVICE WORKER KAYDI ---------------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
