@@ -43,6 +43,9 @@ function doPost(e) {
       case "addOrder":
         result = handleAddOrder(body);
         break;
+      case "debugUsers":
+        result = handleDebugUsers();
+        break;
       default:
         result = { ok: false, error: "Bilinmeyen işlem: " + action };
     }
@@ -80,17 +83,33 @@ function sheetToObjects(sheet) {
 }
 
 // ---------- LOGIN ----------
+// NOT: Burada sütun BAŞLIĞI metnine değil, sütun SIRASINA göre okuyoruz
+// (A=İsim, B=Şifre, C=Rol). Türkçe "İ/I" karakter farkı veya başlık
+// yazım şekli yüzünden eşleşme sorunu yaşanmasın diye bilerek böyle.
+// getDisplayValues() kullanıyoruz ki "0123" gibi şifreler Sheets
+// tarafından sayıya çevrilip baştaki sıfırı kaybetmesin.
 function handleLogin(body) {
-  const isim = (body.isim || "").trim();
-  const sifre = (body.sifre || "").trim();
-  const users = sheetToObjects(getSheet(KULLANICI_SHEET));
-  const user = users.find(
-    (u) => String(u.Isim).trim() === isim && String(u.Sifre).trim() === sifre
-  );
-  if (!user) {
-    return { ok: false, error: "İsim veya şifre hatalı." };
+  const isim = String(body.isim || "").trim();
+  const sifre = String(body.sifre || "").trim();
+
+  const sheet = getSheet(KULLANICI_SHEET);
+  const data = sheet.getDataRange().getDisplayValues();
+
+  for (let i = 1; i < data.length; i++) { // i=0 başlık satırı, atla
+    const rowIsim = String(data[i][0] || "").trim();
+    const rowSifre = String(data[i][1] || "").trim();
+    const rowRol = String(data[i][2] || "").trim();
+
+    if (!rowIsim) continue; // boş satırları atla
+
+    const isimEslesiyor = rowIsim.toLocaleLowerCase("tr") === isim.toLocaleLowerCase("tr");
+    const sifreEslesiyor = rowSifre === sifre;
+
+    if (isimEslesiyor && sifreEslesiyor) {
+      return { ok: true, isim: rowIsim, rol: rowRol };
+    }
   }
-  return { ok: true, isim: user.Isim, rol: user.Rol };
+  return { ok: false, error: "İsim veya şifre hatalı." };
 }
 
 // ---------- SİPARİŞLERİ GETİR ----------
@@ -144,6 +163,25 @@ function findRowBySiparisID(sheet, headers, siparisId) {
     }
   }
   return null;
+}
+
+// ---------- DEBUG: Kullanicilar sayfası doğru okunuyor mu? ----------
+// Tarayıcıda test etmek için: index.html açmadan, Postman/curl ile
+// {"action":"debugUsers"} gönderirsen, şifreler HARİÇ isim/rol listesini
+// döner. Sheets'ten doğru okuyup okumadığını buradan kontrol edebilirsin.
+function handleDebugUsers() {
+  const sheet = getSheet(KULLANICI_SHEET);
+  const data = sheet.getDataRange().getDisplayValues();
+  const rows = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    rows.push({
+      isim: data[i][0],
+      sifreUzunluk: String(data[i][1] || "").length, // şifreyi göstermeden sadece kaç karakter oldugunu gösterir
+      rol: data[i][2],
+    });
+  }
+  return { ok: true, kullanicilar: rows, toplamSatir: data.length - 1 };
 }
 
 // ---------- YENİ SİPARİŞ EKLE (opsiyonel, admin için) ----------

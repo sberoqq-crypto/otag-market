@@ -80,6 +80,32 @@ telefonlarında gerçek bir uygulama ikonu gibi durur, tam ekran açılır.
 4. Admin (Serkan) olarak girersen tüm siparişleri ve Rapor sekmesinde günlük
    nakit/POS/veresiye toplamlarını ve kurye performansını görürsün.
 
+## "Şifre yanlış" hatası alıyorsan
+
+Kod artık **Kullanicilar sayfasında sütun sırasına** bakıyor (A sütunu=İsim,
+B sütunu=Şifre, C sütunu=Rol), başlık yazısına değil. Yani sayfanın ilk üç
+sütunu tam bu sırayla olmalı — başlık hücresinde ne yazdığı (İsim/isim/İSİM
+fark etmez).
+
+Sorunu kesin teşhis etmek için:
+1. Apps Script'te kodu güncelledikten sonra **mutlaka yeniden Dağıt**
+   (Dağıt > Dağıtımları Yönet > kalem ikonu > Yeni Sürüm > Dağıt) — yoksa
+   eski kod çalışmaya devam eder, bu en sık yapılan hatadır.
+2. Tarayıcıda (veya Postman'da) API_URL'e şu gövdeyle bir POST isteği at:
+   ```json
+   {"action":"debugUsers"}
+   ```
+   Dönen cevapta kullanıcı isimlerini, şifre uzunluklarını (şifrenin
+   kendisini değil, kaç karakter olduğunu) ve rollerini görürsün. Eğer
+   `kullanicilar` listesi boşsa ya da isimler yanlış görünüyorsa, sorun
+   Sheets tarafındadır (muhtemelen Kullanicilar sekmesinin adı tam olarak
+   "Kullanicilar" değildir, ya da veri A sütunundan başlamıyordur).
+3. Şifre sütununu **Biçim > Sayı > Düz Metin** yaparsan, "0123" gibi
+   baştaki sıfırlı şifreler kesin korunur.
+4. İsim eşleştirmesi büyük/küçük harfe duyarsız (Barış / barış / BARIŞ hepsi
+   çalışır), ama şifre eşleştirmesi harfe duyarlıdır — kuryene şifreyi
+   birebir söylediğinden emin ol.
+
 ## Bilinmesi gerekenler / sınırlar
 
 - **Güvenlik seviyesi:** Bu basit kurulumda şifre kontrolü tarayıcı ile Apps Script
