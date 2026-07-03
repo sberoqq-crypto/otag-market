@@ -84,9 +84,9 @@
   }
   .sheet h3{margin:0 0 4px;}
   .sheet .muted{color:var(--muted); font-size:13px; margin-bottom:16px;}
-  .pay-options{display:flex; gap:8px; margin-top:6px;}
+  .pay-options{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;}
   .pay-opt{
-    flex:1; padding:12px 6px; text-align:center; border-radius:10px; border:1px solid var(--border);
+    flex:1 1 calc(50% - 4px); padding:12px 6px; text-align:center; border-radius:10px; border:1px solid var(--border);
     background:var(--card2); font-size:13px; font-weight:600; color:var(--muted);
   }
   .pay-opt.active{border-color:var(--accent); color:var(--accent2); background:#2a1a0f;}
@@ -220,28 +220,42 @@ function renderOrderList() {
   wrap.className = "";
   wrap.innerHTML = currentOrders
     .sort((a, b) => (a.Durum === "Teslim Edildi" ? 1 : -1))
-    .map(
-      (o) => `
+    .map((o) => {
+      const sahipsiz = !String(o.KuryeAdi || "").trim();
+      return `
     <div class="order-card">
       <div class="order-top">
         <div>
           <div class="order-id">Sipariş #${o.SiparisID}</div>
-          <div class="order-name">${o.MusteriAdi}</div>
+          <div class="order-name">${o.MusteriAdi || "İsimsiz Müşteri"}</div>
         </div>
         <div class="order-amount">${Number(o.Tutar).toFixed(0)} ₺</div>
       </div>
       <div class="order-addr">📍 ${o.Adres || "-"}</div>
       ${o.Notlar && o.Durum === "Teslim Edildi" ? `<div class="order-addr">📝 ${o.Notlar}</div>` : ""}
       <span class="badge ${o.Durum === "Teslim Edildi" ? "teslim" : "bekliyor"}">${o.Durum}</span>
+      ${sahipsiz ? `<span class="badge" style="background:#2a1a0f; color:var(--accent2); margin-left:6px;">Sahipsiz</span>` : ""}
       ${
-        o.Durum !== "Teslim Edildi"
+        sahipsiz
+          ? `<button class="deliver-btn" style="background:var(--accent2); color:#fff;" onclick="claimOrder('${o.SiparisID}')">📦 Siparişi Üstlen</button>`
+          : o.Durum !== "Teslim Edildi"
           ? `<button class="deliver-btn" onclick="openDeliverForm('${o.SiparisID}')">✅ Teslim Edildi</button>`
           : ""
       }
     </div>
-  `
-    )
+  `;
+    })
     .join("");
+}
+
+async function claimOrder(siparisId) {
+  try {
+    const r = await api("claimOrder", { siparisId, isim: session.isim });
+    if (!r.ok) { alert(r.error); renderCourier(); return; }
+    renderCourier();
+  } catch (e) {
+    alert("Hata: " + e.message);
+  }
 }
 
 function openDeliverForm(siparisId) {
@@ -257,12 +271,14 @@ function openDeliverForm(siparisId) {
       <div class="pay-options">
         <div class="pay-opt" data-val="Nakit">Nakit</div>
         <div class="pay-opt" data-val="POS">POS</div>
+        <div class="pay-opt" data-val="İBAN">İBAN</div>
         <div class="pay-opt" data-val="Veresiye">Veresiye</div>
       </div>
 
       <div id="amount-wrap" style="display:none;">
         <label>Ödenen Miktar (₺)</label>
         <input id="df-miktar" type="number" inputmode="decimal" placeholder="0" />
+        <div id="fark-hint" style="font-size:12px; margin-top:6px;"></div>
       </div>
 
       <label>Notlar / Açıklama</label>
@@ -279,22 +295,41 @@ function openDeliverForm(siparisId) {
   let odemeTipi = null;
   const amountWrap = overlay.querySelector("#amount-wrap");
   const miktarInput = overlay.querySelector("#df-miktar");
+  const farkHint = overlay.querySelector("#fark-hint");
+
+  function updateFarkHint() {
+    if (odemeTipi === "Veresiye") { farkHint.textContent = ""; return; }
+    const girilen = Number(miktarInput.value || 0);
+    const fark = order.Tutar - girilen;
+    if (fark > 0) {
+      farkHint.textContent = `⚠️ ${fark.toFixed(0)} ₺ eksik alınacak`;
+      farkHint.style.color = "var(--red)";
+    } else if (fark < 0) {
+      farkHint.textContent = `ℹ️ ${Math.abs(fark).toFixed(0)} ₺ fazla alınacak`;
+      farkHint.style.color = "var(--blue)";
+    } else {
+      farkHint.textContent = "✅ Tam tutar";
+      farkHint.style.color = "var(--green)";
+    }
+  }
 
   overlay.querySelectorAll(".pay-opt").forEach((el) => {
     el.onclick = () => {
       overlay.querySelectorAll(".pay-opt").forEach((x) => x.classList.remove("active"));
       el.classList.add("active");
       odemeTipi = el.dataset.val;
-      if (odemeTipi === "Nakit" || odemeTipi === "POS") {
-        amountWrap.style.display = "block";
-        miktarInput.value = "";
-      } else {
-        // Veresiye: tutar siparişteki tutara eşitlenir
+      if (odemeTipi === "Veresiye") {
         amountWrap.style.display = "block";
         miktarInput.value = order.Tutar;
+        farkHint.textContent = "";
+      } else {
+        amountWrap.style.display = "block";
+        miktarInput.value = order.Tutar;
+        updateFarkHint();
       }
     };
   });
+  miktarInput.addEventListener("input", updateFarkHint);
 
   overlay.querySelector("#df-cancel").onclick = () => overlay.remove();
   overlay.querySelector("#df-confirm").onclick = async () => {
@@ -312,10 +347,67 @@ function openDeliverForm(siparisId) {
       });
       if (!r.ok) throw new Error(r.error);
       overlay.remove();
+      if (r.fark > 0) {
+        alert(`Kaydedildi. Not: ${r.fark} ₺ eksik alındı, admin panelinde görünecek.`);
+      } else if (r.fark < 0) {
+        alert(`Kaydedildi. Not: ${Math.abs(r.fark)} ₺ fazla alındı, admin panelinde görünecek.`);
+      }
       renderCourier();
     } catch (e) {
       alert("Hata: " + e.message);
       btn.textContent = "Onayla";
+    }
+  };
+}
+
+/* ---------------- YENİ SİPARİŞ EKLE (Admin) ---------------- */
+async function openNewOrderForm() {
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet">
+      <h3>Yeni Sipariş Ekle</h3>
+      <div class="muted">Sipariş bilgilerini gir</div>
+
+      <label>Adres</label>
+      <input id="no-adres" placeholder="Mahalle, cadde, no" />
+
+      <label>Tutar (₺)</label>
+      <input id="no-tutar" type="number" inputmode="decimal" placeholder="0" />
+
+      <label>Müşteri Adı (opsiyonel)</label>
+      <input id="no-musteri" placeholder="Biliniyorsa yaz, boş bırakabilirsin" />
+
+      <div class="muted" style="margin-top:14px;">Kurye ataması yapmıyoruz — sipariş "sahipsiz" olarak eklenecek, kuryeler kendi ekranından üstlenebilecek.</div>
+
+      <div class="sheet-actions">
+        <button class="btn-cancel" id="no-cancel">Vazgeç</button>
+        <button class="btn-confirm" id="no-confirm">Ekle</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#no-cancel").onclick = () => overlay.remove();
+
+  overlay.querySelector("#no-confirm").onclick = async () => {
+    const musteriAdi = overlay.querySelector("#no-musteri").value.trim();
+    const adres = overlay.querySelector("#no-adres").value.trim();
+    const tutar = Number(overlay.querySelector("#no-tutar").value || 0);
+
+    if (!adres || !tutar) {
+      alert("Adres ve tutar zorunlu.");
+      return;
+    }
+    const btn = overlay.querySelector("#no-confirm");
+    btn.textContent = "Ekleniyor...";
+    try {
+      const r = await api("addOrder", { musteriAdi, adres, tutar });
+      if (!r.ok) throw new Error(r.error);
+      overlay.remove();
+      loadAdminBody();
+    } catch (e) {
+      alert("Hata: " + e.message);
+      btn.textContent = "Ekle";
     }
   };
 }
@@ -335,6 +427,7 @@ async function renderAdmin() {
         <div class="tab ${adminTab === "siparisler" ? "active" : ""}" onclick="switchAdminTab('siparisler')">Siparişler</div>
         <div class="tab ${adminTab === "rapor" ? "active" : ""}" onclick="switchAdminTab('rapor')">Rapor</div>
       </div>
+      ${adminTab === "siparisler" ? `<button class="primary" style="margin-bottom:14px;" onclick="openNewOrderForm()">+ Yeni Sipariş Ekle</button>` : ""}
       <div id="admin-body" class="loading">Yükleniyor...</div>
     </div>
   `;
@@ -364,8 +457,8 @@ async function loadAdminBody() {
         <div class="order-card">
           <div class="order-top">
             <div>
-              <div class="order-id">#${o.SiparisID} — ${o.KuryeAdi}</div>
-              <div class="order-name">${o.MusteriAdi}</div>
+              <div class="order-id">#${o.SiparisID} — ${o.KuryeAdi || "Sahipsiz"}</div>
+              <div class="order-name">${o.MusteriAdi || "İsimsiz Müşteri"}</div>
             </div>
             <div class="order-amount">${Number(o.Tutar).toFixed(0)} ₺</div>
           </div>
@@ -381,16 +474,24 @@ async function loadAdminBody() {
       const kuryeRows = Object.entries(r.kuryePerformans || {})
         .map(([k, v]) => `<div class="courier-row"><span class="name">${k}</span><span class="count">${v} teslimat</span></div>`)
         .join("") || `<div class="empty">Bugün henüz teslimat yok.</div>`;
+
+      const eksikRows = (r.eksikDetay || [])
+        .map((e) => `<div class="courier-row"><span class="name">#${e.siparisId} ${e.musteriAdi} (${e.kuryeAdi})</span><span class="count" style="color:var(--red);">-${e.fark} ₺</span></div>`)
+        .join("");
+
       body.className = "";
       body.innerHTML = `
         <div class="stat-grid">
           <div class="stat-card"><div class="label">Bugün Nakit</div><div class="value">${r.nakitToplam.toFixed(0)} ₺</div></div>
           <div class="stat-card"><div class="label">Bugün POS</div><div class="value">${r.posToplam.toFixed(0)} ₺</div></div>
+          <div class="stat-card"><div class="label">Bugün İBAN</div><div class="value">${(r.ibanToplam || 0).toFixed(0)} ₺</div></div>
           <div class="stat-card"><div class="label">Bugün Veresiye</div><div class="value">${r.veresiyeToplam.toFixed(0)} ₺</div></div>
-          <div class="stat-card"><div class="label">Toplam</div><div class="value">${(r.nakitToplam + r.posToplam + r.veresiyeToplam).toFixed(0)} ₺</div></div>
+          <div class="stat-card"><div class="label">Toplam</div><div class="value">${(r.nakitToplam + r.posToplam + (r.ibanToplam || 0) + r.veresiyeToplam).toFixed(0)} ₺</div></div>
+          <div class="stat-card"><div class="label">Toplam Eksik</div><div class="value" style="color:var(--red);">${(r.eksikToplam || 0).toFixed(0)} ₺</div></div>
         </div>
         <div style="margin-top:8px; margin-bottom:10px; font-size:13px; color:var(--muted);">Kurye Performansı (bugün)</div>
         ${kuryeRows}
+        ${eksikRows ? `<div style="margin-top:18px; margin-bottom:10px; font-size:13px; color:var(--muted);">Eksik Alınan Siparişler</div>${eksikRows}` : ""}
       `;
     }
   } catch (e) {
